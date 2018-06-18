@@ -2,10 +2,21 @@
 #include <graphics/vec2.h>
 #include <stdio.h>
 
-
 OBS_DECLARE_MODULE()
 
 OBS_MODULE_USE_DEFAULT_LOCALE("gdq-crop", "en-US")
+
+#define S_RESOLUTION                    "resolution"
+#define T_RESOLUTION                    "Input Source Resolution"
+
+
+static const char *aspects[] = {
+	"PC or HD Consoles [16:9]",
+	"SD Consoles [4:3]",
+	"override [Do not use!]"
+};
+
+#define NUM_ASPECTS (sizeof(aspects) / sizeof(const char *))
 
 
 struct Preset {
@@ -105,7 +116,41 @@ static void crop_filter_update(void *data, obs_data_t *settings)
 }
 
 
-static bool console_clicked(obs_properties_t *props, obs_property_t *p,
+
+void modifyScaleFilter(obs_source_t *parent, obs_source_t *child, void *param) {
+	const char* resolutionName = param;
+	const char* res;
+
+	if (strcmp(resolutionName, "PC or HD Consoles [16:9]") == 0)
+		res = "16:9";
+	else if (strcmp(resolutionName, "SD Consoles [4:3]") == 0)
+		res = "4:3";
+	else if (strcmp(resolutionName, "override [Do not use!]") == 0)
+		return;
+
+	const char* name = obs_source_get_name(child);
+	if (strcmp(name, "GDQ Scale") == 0) {
+		obs_data_t* filtersettings = obs_source_get_settings(child);
+		obs_data_set_string(filtersettings, S_RESOLUTION, res);
+		obs_source_update(child, filtersettings);
+		obs_data_release(filtersettings);
+	}
+}
+
+
+static bool resolution_modified(obs_properties_t *props, obs_property_t *p,
+obs_data_t *settings)
+{
+	struct crop_filter_data* filter = obs_properties_get_param(props);
+	obs_source_t* parentSource = obs_filter_get_parent(filter->context);
+	obs_source_enum_filters(parentSource, modifyScaleFilter, obs_data_get_string(settings, obs_property_name(p)));
+
+	UNUSED_PARAMETER(p);
+	return true;
+}
+
+
+static bool console_modified(obs_properties_t *props, obs_property_t *p,
 	obs_data_t *settings)
 {
 	const char *console = obs_data_get_string(settings, "console");
@@ -215,8 +260,16 @@ static obs_properties_t *crop_filter_properties(void *data)
 	}
 
 	obs_properties_t *props = obs_properties_create();
-
 	obs_property_t *p;
+
+	obs_properties_set_param(props, filter, NULL);
+
+	p = obs_properties_add_list(props, S_RESOLUTION, T_RESOLUTION,
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+
+	for (size_t i = 0; i < NUM_ASPECTS; i++)
+		obs_property_list_add_string(p, aspects[i], aspects[i]);
+	obs_property_set_modified_callback(p, resolution_modified);
 
 	p = obs_properties_add_list(props, "console", "Cropping Preset",
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -225,7 +278,7 @@ static obs_properties_t *crop_filter_properties(void *data)
 	for (int i = 0; i < preset_count; i++) {
 		obs_property_list_add_string(p, presets[i].name, presets[i].name);
 	}
-	obs_property_set_modified_callback(p, console_clicked);
+	obs_property_set_modified_callback(p, console_modified);
 
 	obs_properties_add_float_slider(props, "left", obs_module_text("Crop.Left"), 0, width, 1);
 	obs_properties_add_float_slider(props, "top", obs_module_text("Crop.Top"), 0, height, 1);
@@ -243,6 +296,7 @@ static obs_properties_t *crop_filter_properties(void *data)
 static void crop_filter_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "console", "None");
+	obs_data_set_default_string(settings, S_RESOLUTION, "4:3");
 }
 
 
