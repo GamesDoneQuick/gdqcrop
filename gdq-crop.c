@@ -337,14 +337,6 @@ static obs_properties_t *crop_filter_properties(void *data)
 
 	obs_properties_add_bool(props, S_UNDISTORT, T_UNDISTORT);
 
-
-
-
-
-
-
-
-
 	p = obs_properties_add_list(props, "console", "Cropping Preset",
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, "Custom", "Custom");

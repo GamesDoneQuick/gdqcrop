@@ -35,7 +35,7 @@ FragData VSDefault(VertData v_in)
 {
 	FragData vert_out;
 	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-	vert_out.uv  = v_in.uv * mul_val + add_val;
+	vert_out.uv  = v_in.uv;
 	vert_out.scale = min(0.25 + abs(0.75 / mul(float4(1.0 / base_dimension_i.xy, 1.0, 1.0), ViewProj).xy), 1.0);
 
 	return vert_out;
@@ -130,12 +130,33 @@ float4 PSDrawLanczosMatrix(FragData v_in) : TARGET
 	return saturate(mul(float4(yuv.xyz, 1.0), color_matrix));
 }
 
+FragData VSCrop(VertData v_in)
+{
+    FragData vert_out;
+    vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+    vert_out.uv  = v_in.uv * mul_val + add_val;
+    vert_out.scale = min(0.25 + abs(0.75 / mul(float4(1.0 / base_dimension_i.xy, 1.0, 1.0), ViewProj).xy), 1.0);
+
+    return vert_out;
+}
+
+float4 PSCrop(VertData v_in) : TARGET
+{
+    return image.Sample(textureSampler, v_in.uv);
+}
+
 technique Draw
 {
 	pass
 	{
 		vertex_shader = VSDefault(v_in);
 		pixel_shader  = PSDrawLanczosRGBA(v_in);
+	}
+	
+	pass
+	{
+		vertex_shader = VSCrop(v_in);
+		pixel_shader  = PSCrop(v_in);
 	}
 }
 
@@ -145,5 +166,11 @@ technique DrawMatrix
 	{
 		vertex_shader = VSDefault(v_in);
 		pixel_shader  = PSDrawLanczosMatrix(v_in);
+	}
+	
+	pass
+	{
+		vertex_shader = VSCrop(v_in);
+		pixel_shader  = PSCrop(v_in);
 	}
 }
