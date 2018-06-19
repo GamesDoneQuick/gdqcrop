@@ -5,6 +5,7 @@
 #include <graphics/math-defs.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 
 
@@ -22,10 +23,10 @@ OBS_MODULE_USE_DEFAULT_LOCALE("gdq-crop", "en-US")
 
 struct Preset {
 	char name[255];
-	int left;
-	int right;
-	int top;
-	int bottom;
+	double left;
+	double right;
+	double top;
+	double bottom;
 } presets[255];
 int preset_count = 0;
 
@@ -187,7 +188,103 @@ static void crop_filter_update(void *data, obs_data_t *settings)
 }
 
 
-static bool console_clicked(obs_properties_t *props, obs_property_t *p,
+static bool res_modified(obs_properties_t *props, obs_property_t *p,
+	obs_data_t *settings)
+{
+	bool aspect_ratio_only;
+	uint32_t width, height;
+	uint32_t res_x, res_y;
+	uint32_t newWidth, newHeight;
+	struct crop_filter_data *filter = obs_properties_get_param(props);
+
+	obs_source_t *target = obs_filter_get_target(filter->context);	
+	if (!target) {
+		width = 0;
+		height = 0;
+	}
+	else {
+		width = obs_source_get_base_width(target);
+		height = obs_source_get_base_height(target);
+	}
+
+	if (!height || !height) {
+		obs_property_int_set_limits(obs_properties_get(props, "left"), 0, 0, 1);
+		obs_property_int_set_limits(obs_properties_get(props, "top"), 0, 0, 1);
+		obs_property_int_set_limits(obs_properties_get(props, "right"), 0, 0, 1);
+		obs_property_int_set_limits(obs_properties_get(props, "bottom"), 0, 0, 1);
+		return;
+	}
+
+	newWidth = width;
+	newHeight = height;
+
+	const char *res_str = obs_data_get_string(settings, S_RESOLUTION);
+	int ret = sscanf(res_str, "%dx%d", &res_x, &res_y);
+	if (ret == 2) {
+		aspect_ratio_only = false;
+	}
+	else {
+		ret = sscanf(res_str, "%d:%d", &res_x, &res_y);
+		if (ret != 2) {
+			obs_property_int_set_limits(obs_properties_get(props, "left"), 0, 0, 1);
+			obs_property_int_set_limits(obs_properties_get(props, "top"), 0, 0, 1);
+			obs_property_int_set_limits(obs_properties_get(props, "right"), 0, 0, 1);
+			obs_property_int_set_limits(obs_properties_get(props, "bottom"), 0, 0, 1);
+			return;
+		}
+
+		aspect_ratio_only = true;
+	}
+
+	double old_aspect = (double)width / (double)height;
+	double new_aspect = (double)res_x / (double)res_y;
+
+	if (aspect_ratio_only) {
+		if (fabs(old_aspect - new_aspect) > EPSILON) {
+			if (new_aspect > old_aspect) {
+				newWidth = (int)(height * new_aspect);
+				newHeight = height;
+			}
+			else {
+				newWidth = width;
+				newHeight = (int)(width / new_aspect);
+			}
+		}
+	}
+	else {
+		newWidth = res_x;
+		newHeight = res_y;
+	}
+
+	obs_property_t* slider_prop;
+	float perCrop;
+
+	slider_prop = obs_properties_get(props, "left");
+	perCrop = (double)obs_data_get_int(settings, "left") / (double)obs_property_int_max(slider_prop);
+	obs_property_int_set_limits(slider_prop, 0, newWidth, 1);
+	obs_data_set_int(settings, "left", round(perCrop * newWidth));
+
+	slider_prop = obs_properties_get(props, "right");
+	perCrop = (double)obs_data_get_int(settings, "right") / (double)obs_property_int_max(slider_prop);
+	obs_property_int_set_limits(slider_prop, 0, newWidth, 1);
+	obs_data_set_int(settings, "right", round(perCrop * newWidth));
+
+	slider_prop = obs_properties_get(props, "top");
+	perCrop = (double)obs_data_get_int(settings, "top") / (double)obs_property_int_max(slider_prop);
+	obs_property_int_set_limits(slider_prop, 0, newHeight, 1);
+	obs_data_set_int(settings, "top", round(perCrop * newHeight));
+
+	slider_prop = obs_properties_get(props, "bottom");
+	perCrop = (double)obs_data_get_int(settings, "bottom") / (double)obs_property_int_max(slider_prop);
+	obs_property_int_set_limits(slider_prop, 0, newHeight, 1);
+	obs_data_set_int(settings, "bottom", round(perCrop * newHeight));
+
+	UNUSED_PARAMETER(p);
+	return true;
+}
+
+
+static bool console_modified(obs_properties_t *props, obs_property_t *p,
 	obs_data_t *settings)
 {
 	const char *console = obs_data_get_string(settings, "console");
@@ -200,10 +297,10 @@ static bool console_clicked(obs_properties_t *props, obs_property_t *p,
 	else {
 		for (int i = 0; i < preset_count; i++) {
 			if (strcmp(console, presets[i].name) == 0) {
-				obs_data_set_int(settings, "right", presets[i].right);
-				obs_data_set_int(settings, "left", presets[i].left);
-				obs_data_set_int(settings, "top", presets[i].top);
-				obs_data_set_int(settings, "bottom", presets[i].bottom);
+				obs_data_set_int(settings, "right", round(presets[i].right * (double)obs_property_int_max(obs_properties_get(props, "right"))));
+				obs_data_set_int(settings, "left", round(presets[i].left * (double)obs_property_int_max(obs_properties_get(props, "left"))));
+				obs_data_set_int(settings, "top", round(presets[i].top * (double)obs_property_int_max(obs_properties_get(props, "top"))));
+				obs_data_set_int(settings, "bottom", round(presets[i].bottom * (double)obs_property_int_max(obs_properties_get(props, "bottom"))));
 				break;
 			}
 		}
@@ -245,10 +342,10 @@ static bool new_console_clicked(obs_properties_t *props, obs_property_t *p,
 	
 	// Update preset struct
 	strcpy(presets[newPresetIndex].name, newconsole);
-	presets[newPresetIndex].left = obs_data_get_int(settings, "left");
-	presets[newPresetIndex].right = obs_data_get_int(settings, "right");
-	presets[newPresetIndex].top = obs_data_get_int(settings, "top");
-	presets[newPresetIndex].bottom = obs_data_get_int(settings, "bottom");
+	presets[newPresetIndex].left = (double)obs_data_get_int(settings, "left") / (double)obs_property_int_max(obs_properties_get(props, "left"));
+	presets[newPresetIndex].right = (double)obs_data_get_int(settings, "right") / (double)obs_property_int_max(obs_properties_get(props, "right"));
+	presets[newPresetIndex].top = (double)obs_data_get_int(settings, "top") / (double)obs_property_int_max(obs_properties_get(props, "top"));
+	presets[newPresetIndex].bottom = (double)obs_data_get_int(settings, "bottom") / (double)obs_property_int_max(obs_properties_get(props, "bottom"));
 
 	// Add new preset to list
 	if (!presetFound) {
@@ -265,7 +362,7 @@ static bool new_console_clicked(obs_properties_t *props, obs_property_t *p,
 	// Save new config file
 	FILE* file = fopen("gdq-crop.cfg", "w");
 	for (int i = 0; i < preset_count; i++) {
-		fprintf(file, "%s\n\tleft:%d, right:%d, top:%d, bottom:%d\n",
+		fprintf(file, "%s\n\tleft:%0.7f, right:%0.7f, top:%0.7f, bottom:%0.7f\n",
 			presets[i].name,
 			presets[i].left,
 			presets[i].right,
@@ -284,8 +381,8 @@ static obs_properties_t *crop_filter_properties(void *data)
 {
 	struct crop_filter_data *filter = data;
 	obs_source_t *target = obs_filter_get_target(filter->context);
-	uint32_t width;
-	uint32_t height;
+	uint32_t width, height;
+	uint32_t newWidth, newHeight;
 
 	if (!target) {
 		width = 0;
@@ -296,9 +393,35 @@ static obs_properties_t *crop_filter_properties(void *data)
 		height = obs_source_get_base_height(target);
 	}
 
-	obs_properties_t *props = obs_properties_create();
+	newWidth = width;
+	newHeight = height;
 
+	double old_aspect = (double)width / (double)height;
+	double new_aspect = (double)filter->cx_in / (double)filter->cy_in;
+
+	if (filter->aspect_ratio_only) {
+		if (fabs(old_aspect - new_aspect) > EPSILON) {
+			if (new_aspect > old_aspect) {
+				newWidth = (int)(height * new_aspect);
+				newHeight = height;
+			}
+			else {
+				newWidth = width;
+				newHeight = (int)(width / new_aspect);
+			}
+		}
+	}
+	else {
+		newWidth = filter->cx_in;
+		newHeight = filter->cy_in;
+	}
+
+
+	obs_properties_t *props = obs_properties_create();
 	obs_property_t *p;
+
+	obs_properties_set_param(props, filter, NULL);
+
 	struct obs_video_info ovi;
 	uint32_t cx;
 	uint32_t cy;
@@ -334,6 +457,7 @@ static obs_properties_t *crop_filter_properties(void *data)
 		snprintf(str, 32, "%dx%d", downscales[i].cx, downscales[i].cy);
 		obs_property_list_add_string(p, str, str);
 	}
+	obs_property_set_modified_callback(p, res_modified);
 
 	obs_properties_add_bool(props, S_UNDISTORT, T_UNDISTORT);
 
@@ -344,12 +468,12 @@ static obs_properties_t *crop_filter_properties(void *data)
 	for (int i = 0; i < preset_count; i++) {
 		obs_property_list_add_string(p, presets[i].name, presets[i].name);
 	}
-	obs_property_set_modified_callback(p, console_clicked);
+	obs_property_set_modified_callback(p, console_modified);
 
-	obs_properties_add_float_slider(props, "left", obs_module_text("Crop.Left"), 0, width, 1);
-	obs_properties_add_float_slider(props, "top", obs_module_text("Crop.Top"), 0, height, 1);
-	obs_properties_add_float_slider(props, "right", obs_module_text("Crop.Right"), 0, width, 1);
-	obs_properties_add_float_slider(props, "bottom", obs_module_text("Crop.Bottom"), 0, height, 1);
+	obs_properties_add_int_slider(props, "left", obs_module_text("Crop.Left"), 0, newWidth, 1);
+	obs_properties_add_int_slider(props, "top", obs_module_text("Crop.Top"), 0, newHeight, 1);
+	obs_properties_add_int_slider(props, "right", obs_module_text("Crop.Right"), 0, newWidth, 1);
+	obs_properties_add_int_slider(props, "bottom", obs_module_text("Crop.Bottom"), 0, newHeight, 1);
 
 	obs_properties_add_text(props, "newconsole", "New Preset Name", OBS_TEXT_DEFAULT);
 	obs_properties_add_button(props, "newbutton", "Save New Preset", new_console_clicked);
@@ -585,7 +709,7 @@ bool obs_module_load(void)
 				presets[preset_count].name[len - 1] = 0;
 			}
 
-			fscanf(file, "\tleft:%d, right:%d, top:%d, bottom:%d\n",
+			fscanf(file, "\tleft:%lf, right:%lf, top:%lf, bottom:%lf\n",
 				&presets[preset_count].left,
 				&presets[preset_count].right,
 				&presets[preset_count].top,
