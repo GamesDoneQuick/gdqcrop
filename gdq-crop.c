@@ -11,11 +11,9 @@
 
 #define S_RESOLUTION                    "resolution"
 #define S_SAMPLING                      "sampling"
-#define S_UNDISTORT                     "undistort"
 
 #define T_RESOLUTION                    obs_module_text("Resolution")
 #define T_NONE                          obs_module_text("None")
-#define T_UNDISTORT                     obs_module_text("UndistortCenter")
 
 OBS_DECLARE_MODULE()
 
@@ -64,7 +62,6 @@ struct crop_filter_data {
 	bool                            aspect_ratio_only;
 	bool                            target_valid;
 	bool                            valid;
-	bool                            undistort;
 };
 
 static const double downscale_vals[] = {
@@ -183,13 +180,10 @@ static void crop_filter_update(void *data, obs_data_t *settings)
 		filter->aspect_ratio_only = true;
 	}
 
-	filter->undistort = obs_data_get_bool(settings, S_UNDISTORT);
-
 }
 
 
-static bool res_modified(obs_properties_t *props, obs_property_t *p,
-	obs_data_t *settings)
+static bool res_modified(obs_properties_t *props, obs_property_t *p, obs_data_t *settings)
 {
 	bool aspect_ratio_only;
 	uint32_t width, height;
@@ -212,7 +206,8 @@ static bool res_modified(obs_properties_t *props, obs_property_t *p,
 		obs_property_int_set_limits(obs_properties_get(props, "top"), 0, 0, 1);
 		obs_property_int_set_limits(obs_properties_get(props, "right"), 0, 0, 1);
 		obs_property_int_set_limits(obs_properties_get(props, "bottom"), 0, 0, 1);
-		return;
+		UNUSED_PARAMETER(p);
+		return true;
 	}
 
 	newWidth = width;
@@ -230,7 +225,8 @@ static bool res_modified(obs_properties_t *props, obs_property_t *p,
 			obs_property_int_set_limits(obs_properties_get(props, "top"), 0, 0, 1);
 			obs_property_int_set_limits(obs_properties_get(props, "right"), 0, 0, 1);
 			obs_property_int_set_limits(obs_properties_get(props, "bottom"), 0, 0, 1);
-			return;
+			UNUSED_PARAMETER(p);
+			return true;
 		}
 
 		aspect_ratio_only = true;
@@ -257,27 +253,50 @@ static bool res_modified(obs_properties_t *props, obs_property_t *p,
 	}
 
 	obs_property_t* slider_prop;
-	float perCrop;
+	double perCrop;
 
 	slider_prop = obs_properties_get(props, "left");
 	perCrop = (double)obs_data_get_int(settings, "left") / (double)obs_property_int_max(slider_prop);
 	obs_property_int_set_limits(slider_prop, 0, newWidth, 1);
-	obs_data_set_int(settings, "left", round(perCrop * newWidth));
+	obs_data_set_int(settings, "left", (int)round(perCrop * newWidth));
 
 	slider_prop = obs_properties_get(props, "right");
 	perCrop = (double)obs_data_get_int(settings, "right") / (double)obs_property_int_max(slider_prop);
 	obs_property_int_set_limits(slider_prop, 0, newWidth, 1);
-	obs_data_set_int(settings, "right", round(perCrop * newWidth));
+	obs_data_set_int(settings, "right", (int)round(perCrop * newWidth));
 
 	slider_prop = obs_properties_get(props, "top");
 	perCrop = (double)obs_data_get_int(settings, "top") / (double)obs_property_int_max(slider_prop);
 	obs_property_int_set_limits(slider_prop, 0, newHeight, 1);
-	obs_data_set_int(settings, "top", round(perCrop * newHeight));
+	obs_data_set_int(settings, "top", (int)round(perCrop * newHeight));
 
 	slider_prop = obs_properties_get(props, "bottom");
 	perCrop = (double)obs_data_get_int(settings, "bottom") / (double)obs_property_int_max(slider_prop);
 	obs_property_int_set_limits(slider_prop, 0, newHeight, 1);
-	obs_data_set_int(settings, "bottom", round(perCrop * newHeight));
+	obs_data_set_int(settings, "bottom", (int)round(perCrop * newHeight));
+
+	UNUSED_PARAMETER(p);
+	return true;
+}
+
+
+static bool console_type_modified(obs_properties_t *props, obs_property_t *p,
+	obs_data_t *settings)
+{
+	const char *console_type = obs_data_get_string(settings, "console_type");
+	if (strcmp(console_type, "4:3") == 0) {
+		obs_data_set_string(settings, S_RESOLUTION, "4:3");
+		obs_property_set_visible(obs_properties_get(props, S_RESOLUTION), false);
+	}
+	else if (strcmp(console_type, "16:9") == 0) {
+		obs_data_set_string(settings, S_RESOLUTION, "16:9");
+		obs_property_set_visible(obs_properties_get(props, S_RESOLUTION), false);
+	}
+	else {
+		obs_property_set_visible(obs_properties_get(props, S_RESOLUTION), true);
+	}
+
+	res_modified(props, p, settings);
 
 	UNUSED_PARAMETER(p);
 	return true;
@@ -297,10 +316,10 @@ static bool console_modified(obs_properties_t *props, obs_property_t *p,
 	else {
 		for (int i = 0; i < preset_count; i++) {
 			if (strcmp(console, presets[i].name) == 0) {
-				obs_data_set_int(settings, "right", round(presets[i].right * (double)obs_property_int_max(obs_properties_get(props, "right"))));
-				obs_data_set_int(settings, "left", round(presets[i].left * (double)obs_property_int_max(obs_properties_get(props, "left"))));
-				obs_data_set_int(settings, "top", round(presets[i].top * (double)obs_property_int_max(obs_properties_get(props, "top"))));
-				obs_data_set_int(settings, "bottom", round(presets[i].bottom * (double)obs_property_int_max(obs_properties_get(props, "bottom"))));
+				obs_data_set_int(settings, "right", (int)round(presets[i].right * (double)obs_property_int_max(obs_properties_get(props, "right"))));
+				obs_data_set_int(settings, "left", (int)round(presets[i].left * (double)obs_property_int_max(obs_properties_get(props, "left"))));
+				obs_data_set_int(settings, "top", (int)round(presets[i].top * (double)obs_property_int_max(obs_properties_get(props, "top"))));
+				obs_data_set_int(settings, "bottom", (int)round(presets[i].bottom * (double)obs_property_int_max(obs_properties_get(props, "bottom"))));
 				break;
 			}
 		}
@@ -422,6 +441,13 @@ static obs_properties_t *crop_filter_properties(void *data)
 
 	obs_properties_set_param(props, filter, NULL);
 
+	p = obs_properties_add_list(props, "console_type", "Input Source Aspect",
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, "SD Console [4:3]", "4:3");
+	obs_property_list_add_string(p, "PC/HD Console [16:9]", "16:9");
+	obs_property_list_add_string(p, "override [Do not use]", "override");
+	obs_property_set_modified_callback(p, console_type_modified);
+
 	struct obs_video_info ovi;
 	uint32_t cx;
 	uint32_t cy;
@@ -458,8 +484,7 @@ static obs_properties_t *crop_filter_properties(void *data)
 		obs_property_list_add_string(p, str, str);
 	}
 	obs_property_set_modified_callback(p, res_modified);
-
-	obs_properties_add_bool(props, S_UNDISTORT, T_UNDISTORT);
+	obs_property_set_visible(p, false);
 
 	p = obs_properties_add_list(props, "console", "Cropping Preset",
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -486,9 +511,8 @@ static obs_properties_t *crop_filter_properties(void *data)
 static void crop_filter_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "console", "None");
-	obs_data_set_default_string(settings, S_RESOLUTION, T_NONE);
-	obs_data_set_default_bool(settings, S_UNDISTORT, 0);
-
+	obs_data_set_default_string(settings, "console_type", "4:3");
+	obs_data_set_default_string(settings, S_RESOLUTION, "4:3");
 }
 
 
@@ -598,12 +622,7 @@ static void crop_filter_tick(void *data, float seconds)
 		1.0f / (float)cx,
 		1.0f / (float)cy);
 
-	if (filter->undistort) {
-		filter->undistort_factor = new_aspect / old_aspect;
-	}
-	else {
-		filter->undistort_factor = 1.0;
-	}
+	filter->undistort_factor = new_aspect / old_aspect;
 
 	/* ------------------------- */
 
@@ -628,8 +647,7 @@ static void crop_filter_render(void *data, gs_effect_t *effect)
 {
 	struct crop_filter_data *filter = data;
 
-	const char *technique = filter->undistort ?
-		"DrawUndistort" : "Draw";
+	const char *technique = "DrawUndistort";
 
 	if (!filter->valid || !filter->target_valid) {
 		obs_source_skip_video_filter(filter->context);
