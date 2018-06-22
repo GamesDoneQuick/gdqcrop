@@ -384,7 +384,7 @@ static uint32_t crop_filter_height(void *data)
 
 
 struct obs_source_info gdq_crop_filter = {
-	.id = "crop_console_filter",
+	.id = "gdq_crop_console_filter",
 	.type = OBS_SOURCE_TYPE_FILTER,
 	.output_flags = OBS_SOURCE_VIDEO,
 	.get_name = crop_filter_get_name,
