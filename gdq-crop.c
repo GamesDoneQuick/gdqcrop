@@ -9,6 +9,8 @@ OBS_MODULE_USE_DEFAULT_LOCALE("gdq-crop", "en-US")
 #define S_RESOLUTION                    "resolution"
 #define T_RESOLUTION                    "Input Source Resolution"
 
+#define GDQ_LOG(level, format, ...) \
+	blog(level, "[gdqcrop]: " format, ##__VA_ARGS__)
 
 static const char *aspects[] = {
 	"PC or HD Consoles [16:9]",
@@ -70,6 +72,9 @@ static void *crop_filter_create(obs_data_t *settings, obs_source_t *context)
 
 	if (!filter->effect) {
 		bfree(filter);
+
+		GDQ_LOG(LOG_ERROR, "crop_filter.effect was missing. Ensure the plugin data folder exists");
+
 		return NULL;
 	}
 
