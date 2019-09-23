@@ -133,8 +133,8 @@ void modifyScaleFilter(obs_source_t *parent, obs_source_t *child, void *param) {
 	else if (strcmp(resolutionName, "override [Do not use!]") == 0)
 		return;
 
-	const char* name = obs_source_get_name(child);
-	if (strcmp(name, "GDQ Scale") == 0) {
+	const char* name = obs_source_get_id(child);
+	if (strcmp(name, "scale_filter") == 0) {
 		obs_data_t* filtersettings = obs_source_get_settings(child);
 		obs_data_set_string(filtersettings, S_RESOLUTION, res);
 		obs_source_update(child, filtersettings);
