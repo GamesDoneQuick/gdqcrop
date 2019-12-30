@@ -13,8 +13,9 @@ OBS_MODULE_USE_DEFAULT_LOCALE("gdq-crop", "en-US")
 	blog(level, "[gdqcrop]: " format, ##__VA_ARGS__)
 
 static const char *aspects[] = {
-	"PC or HD Consoles [16:9]",
-	"SD Consoles [4:3]",
+	"HDMI Soure [16:9]",
+	"Component/SCART Source [4:3]",
+	"GameCube Game played on Wii Console [3:2]",
 	"override [Do not use!]"
 };
 
@@ -126,10 +127,12 @@ void modifyScaleFilter(obs_source_t *parent, obs_source_t *child, void *param) {
 	const char* resolutionName = param;
 	const char* res;
 
-	if (strcmp(resolutionName, "PC or HD Consoles [16:9]") == 0)
+	if (strcmp(resolutionName, "HDMI Soure [16:9]") == 0)
 		res = "16:9";
-	else if (strcmp(resolutionName, "SD Consoles [4:3]") == 0)
+	else if (strcmp(resolutionName, "Component/SCART Source [4:3]") == 0)
 		res = "4:3";
+	else if (strcmp(resolutionName, "GameCube Game played on Wii Console [3:2]") == 0)
+		res = "3:2";
 	else if (strcmp(resolutionName, "override [Do not use!]") == 0)
 		return;
 
